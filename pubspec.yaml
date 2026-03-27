@@ -1,0 +1,50 @@
+name: fyp_handwriting_app
+description: A new Flutter project.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.9.2 <4.0.0"
+
+# dependencies:
+#  flutter:
+ #   sdk: flutter
+ # cupertino_icons: ^1.0.8
+ # flutter_tts: ^3.8.0        # For Voice-Guided Writing
+ # shared_preferences: ^2.3.2 # For saving accuracy scores
+ # google_mlkit_text_recognition: ^0.11.0*/
+
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_mlkit_digital_ink_recognition: ^0.14.1
+  flutter_tts: ^3.8.3
+  shared_preferences: ^2.3.2
+
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/fonts/
+
+  fonts:
+    # English letters & Arabic numerals
+    - family: KGPrimaryPenmanship
+      fonts:
+        - asset: assets/fonts/KGPrimaryPenmanship.ttf
+          weight: 400
+
+    # Chinese numerals
+    - family: NotoSansTC
+      fonts:
+        - asset: assets/fonts/NotoSansTC-Regular.ttf
+          weight: 400
