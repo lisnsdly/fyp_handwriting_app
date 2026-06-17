@@ -26,13 +26,3 @@ A cross-platform mobile application engineered using **Flutter** and **Dart**, s
 * **Audio Engine:** Text-to-Speech (`flutter_tts`)
 * **Environment:** Cross-platform Mobile (iOS / Android)
 
----
-
-## 📦 Getting Started
-
-To get a local copy up and running, follow these simple steps:
-
-1. **Prerequisites**
-   Ensure you have Flutter SDK installed on your machine.
-```bash
-   flutter --version
