@@ -1,17 +1,38 @@
-# fyp_handwritting_app
+# Smart Handwriting Practice App (Assistive EdTech Capstone)
 
-A new Flutter project.
+A cross-platform mobile application engineered using **Flutter** and **Dart**, specifically optimized for low-vision and visually impaired users to independently practice handwriting exercises.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+## 🚀 Key Features
 
-A few resources to get you started if this is your first Flutter project:
+* **On-Device Machine Learning:** Integrated with **Google ML Kit (Digital Ink Recognition)** to process and recognize user canvas text strokes entirely locally, ensuring fast response times and data privacy.
+* **Assistive Audio Pipeline:** Deployed localized Cantonese and English **Text-to-Speech (TTS)** voice guidance using `flutter_tts` to seamlessly walk users through alphabets, Arabic numbers, and Chinese numeral exercises.
+* **Inclusive UX Design:** Fully optimized with assistive design principles specifically tailored for low-vision user interactions (high contrast layout, accessible drop-zones, and tactile/audio feedback).
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+---
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-# fyp_handwriting_app
+## 📊 Proven Impact
+
+* Conducted a structured user study involving **n=22 visually impaired individuals**.
+* Evaluation metrics demonstrated a **+17.6% improvement** in independent task completion accuracy, effectively raising user success rates from **54.2% to 71.8%**.
+
+---
+
+## 🛠️ Tech Stack
+
+* **Frontend Framework:** Flutter (Dart)
+* **AI/ML Engine:** Google ML Kit (Digital Ink Recognition)
+* **Audio Engine:** Text-to-Speech (`flutter_tts`)
+* **Environment:** Cross-platform Mobile (iOS / Android)
+
+---
+
+## 📦 Getting Started
+
+To get a local copy up and running, follow these simple steps:
+
+1. **Prerequisites**
+   Ensure you have Flutter SDK installed on your machine.
+```bash
+   flutter --version
