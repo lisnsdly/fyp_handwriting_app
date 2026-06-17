@@ -43,3 +43,14 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local Python deps for one-off PDF generation (see tools/generate_development_stack_pdf.py)
+.pdf_tools/
+
+# Local Python deps for Word export (see tools/generate_fyp_report_docx.py)
+.doc_tools/
+
+# Local Python virtual environments
+.venv/
+venv/
+.venv_zh/

@@ -214,6 +214,30 @@ String t(AppSettings s, String key) {
     'say_selected': '已選擇：{glyph}',
     'say_numbers_zh': '阿拉伯及中文數字一至十',
     'say_complete': '完成 {rounds} 次 {target}，平均準確度：{percent} 百分比。',
+    'poems_phrases_home': '詩歌與短句',
+    'poems_list_title': '詩歌與短句',
+    'section_short_phrases': '短句',
+    'section_classic_poems': '經典詩歌',
+    'poem_summary_title': '練習摘要',
+    'poem_no_chars': '沒有可練習的字元。',
+    'poem_progress_words_chars': '詞 {wi}/{wt} • 字 {ci}/{cc}',
+    'poem_word_one': '1 個詞',
+    'poem_words_n': '{n} 個詞',
+    'poem_a11y_speak': '朗讀',
+    'poem_a11y_clear': '清除筆劃',
+    'poem_tip_landscape': '切換為橫向',
+    'poem_tip_portrait': '切換為直向',
+    'poem_write_again': '請再寫一次。',
+    'overall_accuracy_caption': '整體準確度',
+    'avg_per_character': '平均每字：',
+    'total_time_label': '總用時：',
+    'needs_improvement': '需加強：',
+    'poem_tts_summary':
+        '完成。整體準確度 {pct} 百分比。平均每字 {avgChar}。總用時 {total}。',
+    'poem_tts_weak': '需加強詞：{words}。',
+    'time_fmt_min_sec': '{m} 分 {s} 秒',
+    'time_fmt_min_only': '{m} 分',
+    'time_fmt_sec_only': '{s} 秒',
   };
   const en = <String, String>{
     'app_title': 'Handwriting',
@@ -245,6 +269,30 @@ String t(AppSettings s, String key) {
     'say_numbers_en': 'Arabic and Chinese numerals one to ten',
     'say_complete':
     'Completed {rounds} rounds of {target}. Average accuracy: {percent} percent.',
+    'poems_phrases_home': 'Poems & phrases',
+    'poems_list_title': 'Poems & short phrases',
+    'section_short_phrases': 'Short phrases',
+    'section_classic_poems': 'Classic poems',
+    'poem_summary_title': 'Practice summary',
+    'poem_no_chars': 'No characters to practice.',
+    'poem_progress_words_chars': 'Word {wi}/{wt} • Char {ci}/{cc}',
+    'poem_word_one': '1 word',
+    'poem_words_n': '{n} words',
+    'poem_a11y_speak': 'Speak',
+    'poem_a11y_clear': 'Clear strokes',
+    'poem_tip_landscape': 'Switch to landscape',
+    'poem_tip_portrait': 'Switch to portrait',
+    'poem_write_again': 'Write again.',
+    'overall_accuracy_caption': 'Overall accuracy',
+    'avg_per_character': 'Avg. per character:',
+    'total_time_label': 'Total time:',
+    'needs_improvement': 'Needs improvement:',
+    'poem_tts_summary':
+        'Completed. Overall accuracy {pct} percent. Average time per character {avgChar}. Total time {total}.',
+    'poem_tts_weak': 'Words to improve: {words}.',
+    'time_fmt_min_sec': '{m} minutes {s} seconds',
+    'time_fmt_min_only': '{m} minutes',
+    'time_fmt_sec_only': '{s} seconds',
   };
   final dict = s.uiLang == 'en' ? en : zh;
   return dict[key] ?? key;
@@ -315,10 +363,8 @@ class HomePage extends StatelessWidget {
                   onTapAnnounce: _announceHomeTapNumbers,
                 ),
 
-                if (settings.uiLang == 'en') ...[
-                  const SizedBox(height: 20),
-                  PoemFeatureHomeButton(settings: settings),
-                ],
+                const SizedBox(height: 20),
+                PoemFeatureHomeButton(settings: settings),
 
               ]),
             ),
@@ -531,7 +577,7 @@ Widget _gridSelectPage(
 
                     final result = await navigator.pushNamed(
                       '/practice',
-                      arguments: '$type: $glyph',
+                      arguments: '$type: $glyph|autoGuide',
                     );
                     if (result is double) {
                       final percent =
@@ -543,17 +589,19 @@ Widget _gridSelectPage(
                     }
                   },
                   child: Container(
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFB0A999),
-                      borderRadius: BorderRadius.all(Radius.circular(16)),
+                    decoration: BoxDecoration(
+                      // High-contrast blue (7:1 with white) — readable for low vision
+                      color: const Color(0xFF1A5BB0),
+                      borderRadius: const BorderRadius.all(Radius.circular(16)),
+                      border: Border.all(color: Colors.white54, width: 2),
                     ),
                     alignment: Alignment.center,
                     child: NoTextScale(
                       child: FitText(
                         glyph,
-                        minFont: 26.0,
-                        maxFont: 48.0,
-                        fontWeight: FontWeight.w800,
+                        minFont: 28.0,
+                        maxFont: 52.0,
+                        fontWeight: FontWeight.w900,
                         color: Colors.white,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8.0, vertical: 6.0),
@@ -1052,7 +1100,7 @@ class _PracticeTemplatePageState extends State<PracticeTemplatePage> {
   List<Offset> currentStroke = [];
   bool isEraser = false;
   bool highContrast = false;
-  double strokeWidth = 8.0;
+  double strokeWidth = 12.0; // default thicker stroke for low-vision users
 
   // Voice
   late final VoiceGuideService _voice;
@@ -1084,9 +1132,13 @@ class _PracticeTemplatePageState extends State<PracticeTemplatePage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    practiceType =
+    final rawArg =
         (ModalRoute.of(context)?.settings.arguments as String?) ??
             'Practice: ?';
+    // Strip the |autoGuide flag used to signal automatic guide playback
+    final bool shouldAutoGuide = rawArg.endsWith('|autoGuide');
+    practiceType = rawArg.replaceAll('|autoGuide', '');
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!_autoPlayed && practiceCount == 0) {
         _autoPlayed = true;
@@ -1106,7 +1158,14 @@ class _PracticeTemplatePageState extends State<PracticeTemplatePage> {
           zhSel = fmt(settings, 'say_selected', {'glyph': glyph});
           enSel = fmt(settings, 'say_selected', {'glyph': glyph});
         }
-        VoiceAnnouncer.instance.say(zh: zhSel, en: enSel);
+        await VoiceAnnouncer.instance.say(zh: zhSel, en: enSel);
+
+        // Auto-play stroke-by-stroke guide immediately on entry so
+        // low-vision users know how to write the character before they start.
+        if (shouldAutoGuide) {
+          await Future.delayed(const Duration(milliseconds: 200));
+          await _voice.speakForTarget(practiceType);
+        }
       }
     });
   }
@@ -1423,6 +1482,11 @@ class _PracticeTemplatePageState extends State<PracticeTemplatePage> {
       conf01 = 1.0;
     }
 
+    // Top-1 exact match: ML Kit scores are often unnormalised; avoid underscoring.
+    if (idx == 0) {
+      conf01 = math.max(conf01, 0.94);
+    }
+
     return (rankW * conf01).clamp(0.0, 1.0);
   }
 
@@ -1483,7 +1547,8 @@ class _PracticeTemplatePageState extends State<PracticeTemplatePage> {
     final coverage =
     await _simpleCoverageAgainstTemplate(strokes, templateImg, size);
 
-    return (0.80 * mlScore + 0.20 * coverage).clamp(0.0, 1.0);
+    // Recognition is the main signal; coverage is a light alignment check.
+    return (0.88 * mlScore + 0.12 * coverage).clamp(0.0, 1.0);
   }
 
   Future<double> _simpleCoverageAgainstTemplate(
@@ -1515,16 +1580,27 @@ class _PracticeTemplatePageState extends State<PracticeTemplatePage> {
       for (final p in st) {
         final int x = (p.dx * sx).round().clamp(0, dim - 1);
         final int y = (p.dy * sy).round().clamp(0, dim - 1);
-        final int idx = (y * dim + x) * 4; // RGBA
-        final int a = bytes[idx + 3];
         total++;
-        if (a >= 16) {
+        if (_coveragePixelHit(bytes, dim, x, y, 16)) {
           inside++;
         }
       }
     }
     if (total == 0) return 0.0;
     return (inside / total).clamp(0.0, 1.0);
+  }
+
+  bool _coveragePixelHit(
+      Uint8List bytes, int dim, int x, int y, int alphaThreshold) {
+    for (int dy = -1; dy <= 1; dy++) {
+      for (int dx = -1; dx <= 1; dx++) {
+        final xx = (x + dx).clamp(0, dim - 1);
+        final yy = (y + dy).clamp(0, dim - 1);
+        final idx = (yy * dim + xx) * 4;
+        if (bytes[idx + 3] >= alphaThreshold) return true;
+      }
+    }
+    return false;
   }
 
   // ── UI (PopScope with Close speech)
@@ -1779,6 +1855,7 @@ class _PracticeTemplatePageState extends State<PracticeTemplatePage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
+                      // Brush — blue
                       GestureDetector(
                         onTap: () {
                           setState(() => isEraser = false);
@@ -1792,10 +1869,10 @@ class _PracticeTemplatePageState extends State<PracticeTemplatePage> {
                         child: Semantics(
                           button: true,
                           label: t(settings, 'brush'),
-                          child:
-                          Icon(Icons.brush, size: 52, color: brushColor),
+                          child: Icon(Icons.brush, size: 56, color: brushColor),
                         ),
                       ),
+                      // Eraser — amber/red
                       GestureDetector(
                         onTap: () {
                           setState(() => isEraser = true);
@@ -1809,16 +1886,17 @@ class _PracticeTemplatePageState extends State<PracticeTemplatePage> {
                           button: true,
                           label: t(settings, 'eraser'),
                           child: Icon(Icons.cleaning_services,
-                              size: 52, color: eraserColor),
+                              size: 56, color: eraserColor),
                         ),
                       ),
+                      // Next — green
                       GestureDetector(
                         onTap: _nextPractice,
                         child: Semantics(
                           button: true,
                           label: t(settings, 'next'),
-                          child:
-                          const Icon(Icons.arrow_forward, size: 52),
+                          child: const Icon(Icons.arrow_forward,
+                              size: 56, color: Color(0xFF4AE88A)),
                         ),
                       ),
                     ],
@@ -1980,9 +2058,7 @@ class AccuracyRecorder {
 // POEM FEATURE — SINGLE-FILE DROP-IN (no new imports here)
 // ======================================================================
 
-/// Home button for Poem feature — visible only when UI language is English.
-/// Place this widget in HomePage.build() after the Numbers tile:
-/// if (settings.uiLang == 'en') ...[ SizedBox(height: 20), PoemFeatureHomeButton(settings: settings), ],
+/// Home entry for English poems & short phrases (content stays English; label is localized).
 class PoemFeatureHomeButton extends StatelessWidget {
   final AppSettings settings;
   final EdgeInsetsGeometry padding;
@@ -1997,14 +2073,9 @@ class PoemFeatureHomeButton extends StatelessWidget {
     this.height = 56,
   });
 
-  bool _isEnglish() => settings.uiLang == 'en';
-
   @override
   Widget build(BuildContext context) {
-    if (!_isEnglish()) {
-      return const SizedBox.shrink();
-    }
-
+    final label = t(settings, 'poems_phrases_home');
     return Padding(
       padding: padding,
       child: SizedBox(
@@ -2012,11 +2083,19 @@ class PoemFeatureHomeButton extends StatelessWidget {
         height: height,
         child: ElevatedButton.icon(
           icon: const Icon(Icons.menu_book),
-          label: const Text('Poem'),
+          label: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           onPressed: () {
+            VoiceAnnouncer.instance.say(
+              zh: '\u9032\u5165\u8a69\u6b4c\u8207\u77ed\u53e5\u7df4\u7fd2',
+              en: 'Poems and short phrases in English',
+            );
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const PoemFeatureListPage(),
+                builder: (_) => PoemFeatureListPage(settings: settings),
               ),
             );
           },
@@ -2053,7 +2132,53 @@ class PoemFeaturePoem {
   }
 }
 
-/// Public-domain / nursery rhymes (safe for shipping).
+// ─── Short practice phrases (demo-friendly, 2–4 words) ───────────────────────
+//
+// Chosen for the following pedagogical reasons:
+//  1. "I can write"  — only 3 common words, letters c/a/n/w/r/i/t/e cover a
+//                      wide range of basic strokes; motivational for learners.
+//  2. "The cat sat"  — classic early-reading primer phrase; letters are all
+//                      simple single-stroke or two-stroke forms.
+//  3. "Good morning" — practical everyday phrase learners will actually want to
+//                      write; includes round letters (o, g) good for practice.
+//  4. "My best try"  — positive reinforcement language; covers ascender (t) and
+//                      descender (y) which are important stroke variations.
+//  5. "One two three"— number words as text; useful for mixed letter/digit
+//                      practice and covers h, w, e, r endings.
+const List<PoemFeaturePoem> kPoemFeatureShortPhrases = [
+  PoemFeaturePoem(
+    id: 'short_write',
+    title: 'I can write',
+    author: '',
+    text: 'I can write',
+  ),
+  PoemFeaturePoem(
+    id: 'short_cat',
+    title: 'The cat sat',
+    author: '',
+    text: 'The cat sat',
+  ),
+  PoemFeaturePoem(
+    id: 'short_morning',
+    title: 'Good morning',
+    author: '',
+    text: 'Good morning',
+  ),
+  PoemFeaturePoem(
+    id: 'short_try',
+    title: 'My best try',
+    author: '',
+    text: 'My best try',
+  ),
+  PoemFeaturePoem(
+    id: 'short_numbers',
+    title: 'One two three',
+    author: '',
+    text: 'One two three',
+  ),
+];
+
+// ─── Classic nursery rhymes / public-domain poems ────────────────────────────
 const List<PoemFeaturePoem> kPoemFeaturePoems = [
   PoemFeaturePoem(
     id: 'twinkle',
@@ -2090,122 +2215,256 @@ Couldn't put Humpty together again.
   ),
 ];
 
-/// A simple list page that shows available poems (English-only feature).
-/// Tapping a poem opens the practice screen.
-class PoemFeatureListPage extends StatelessWidget {
+/// Lists English short phrases and classic poems; chrome uses [settings] for labels.
+class PoemFeatureListPage extends StatefulWidget {
+  final AppSettings settings;
+  // Non-empty only when overriding the default two-section layout (tests / debug).
   final List<PoemFeaturePoem> poems;
 
-  /// If you already declared `kPoemFeaturePoems`, leave this empty.
-  const PoemFeatureListPage({super.key, this.poems = kPoemFeaturePoems});
-
-  @override
-  Widget build(BuildContext context) {
-    final data = poems.isEmpty ? kPoemFeaturePoems : poems;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Poem'),
-      ),
-      body: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        itemCount: data.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (context, index) {
-          final poem = data[index];
-          final subtitle = [
-            if (poem.author.trim().isNotEmpty) poem.author.trim(),
-            '${poem.words.length} words',
-          ].join(' • ');
-
-          return InkWell(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PoemFeaturePracticePage(poem: poem),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Ink(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor.withOpacity(0.2),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.menu_book,
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _PoemTitleSubtitle(
-                        title: poem.title,
-                        subtitle: subtitle,
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _PoemTitleSubtitle extends StatelessWidget {
-  final String title;
-  final String subtitle;
-
-  const _PoemTitleSubtitle({
-    required this.title,
-    required this.subtitle,
+  const PoemFeatureListPage({
+    super.key,
+    required this.settings,
+    this.poems = const [],
   });
 
   @override
-  Widget build(BuildContext context) {
-    final titleStyle = Theme.of(context).textTheme.titleMedium;
-    final subtitleStyle = Theme.of(context)
-        .textTheme
-        .bodySmall
-        ?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.8));
+  State<PoemFeatureListPage> createState() => _PoemFeatureListPageState();
+}
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+class _PoemFeatureListPageState extends State<PoemFeatureListPage> {
+  final FlutterTts _tts = FlutterTts();
+
+  bool _ttsReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupTts();
+  }
+
+  Future<void> _setupTts() async {
+    try {
+      await _tts.setLanguage('en-US');
+    } catch (_) {
+      try { await _tts.setLanguage('en_US'); } catch (_) {}
+    }
+    await _tts.setSpeechRate(0.42);
+    await _tts.setVolume(1.0);
+    await _tts.setPitch(1.0);
+    await _tts.awaitSpeakCompletion(true);
+    _ttsReady = true;
+  }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    super.dispose();
+  }
+
+  Future<void> _speakPoem(PoemFeaturePoem poem) async {
+    if (!_ttsReady) return;
+    try { await _tts.stop(); } catch (_) {}
+    try { await _tts.speak(poem.title); } catch (_) {}
+  }
+
+  // Build a single poem/phrase card.
+  // [accentColor] tints the icon box and border; [icon] distinguishes the two
+  // categories visually so low-vision users can tell them apart at a glance.
+  Widget _poemCard(
+    BuildContext context,
+    PoemFeaturePoem poem, {
+    required Color accentColor,
+    required IconData icon,
+    /// Second line under title (author + word count). Off for short phrases.
+    bool showSubtitle = true,
+  }) {
+    String subtitle = '';
+    if (showSubtitle) {
+      final nWords = poem.words.length;
+      final wordCountLabel = nWords == 1
+          ? t(widget.settings, 'poem_word_one')
+          : fmt(widget.settings, 'poem_words_n', {'n': '$nWords'});
+      subtitle = [
+        if (poem.author.trim().isNotEmpty) poem.author.trim(),
+        wordCountLabel,
+      ].join(' • ');
+    }
+
+    return GestureDetector(
+      onTap: () async {
+        await _speakPoem(poem);
+        if (!context.mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => PoemFeaturePracticePage(
+                  settings: widget.settings,
+                  poem: poem,
+                ),
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A6F),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accentColor, width: 2),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: accentColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: Colors.white, size: 32),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    poem.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      height: 1.3,
+                    ),
+                  ),
+                  if (showSubtitle) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: accentColor.withValues(alpha: 0.85),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: accentColor, size: 36),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Section header label (Short / Long).
+  Widget _sectionHeader(String label, Color color, IconData icon) => Padding(
+    padding: const EdgeInsets.only(top: 8, bottom: 10),
+    child: Row(
       children: [
+        Icon(icon, color: color, size: 28),
+        const SizedBox(width: 10),
         Text(
-          title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: titleStyle,
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.5,
+          ),
         ),
-        const SizedBox(height: 2),
-        Text(
-          subtitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: subtitleStyle,
-        ),
+        const SizedBox(width: 10),
+        Expanded(child: Divider(color: color.withValues(alpha: 0.4), thickness: 2)),
       ],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    // When a custom poem list is injected (tests/debug), show it flat.
+    // Otherwise show the two-section layout.
+    final useCustom = widget.poems.isNotEmpty;
+    final customData = widget.poems;
+
+    const shortAccent  = Color(0xFF2EBD7E); // teal-green for Short
+    const longAccent   = Color(0xFF4A90E2); // blue for Classic Poems
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A3F),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF12124A),
+        title: Text(
+          t(widget.settings, 'poems_list_title'),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white, size: 32),
+      ),
+      body: useCustom
+          // ── Custom / injected list (flat, no sections) ──────────────────
+          ? ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+              itemCount: customData.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 14),
+              itemBuilder: (ctx, i) => _poemCard(
+                ctx, customData[i],
+                accentColor: longAccent,
+                icon: Icons.menu_book,
+              ),
+            )
+          // ── Default two-section layout ───────────────────────────────────
+          : ListView(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+              children: [
+                // ── Short phrases section ──────────────────────────────────
+                _sectionHeader(
+                  t(widget.settings, 'section_short_phrases'),
+                  shortAccent,
+                  Icons.short_text,
+                ),
+                ...kPoemFeatureShortPhrases.map(
+                  (p) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: _poemCard(
+                      context, p,
+                      accentColor: shortAccent,
+                      icon: Icons.edit_note,
+                      showSubtitle: false,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // ── Classic poems section ──────────────────────────────────
+                _sectionHeader(
+                  t(widget.settings, 'section_classic_poems'),
+                  longAccent,
+                  Icons.menu_book,
+                ),
+                ...kPoemFeaturePoems.map(
+                  (p) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: _poemCard(
+                      context, p,
+                      accentColor: longAccent,
+                      icon: Icons.menu_book,
+                      showSubtitle: false,
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
+
 
 
 // =============================================================================
@@ -2214,9 +2473,14 @@ class _PoemTitleSubtitle extends StatelessWidget {
 // =============================================================================
 
 class PoemFeaturePracticePage extends StatefulWidget {
+  final AppSettings settings;
   final PoemFeaturePoem poem;
 
-  const PoemFeaturePracticePage({super.key, required this.poem});
+  const PoemFeaturePracticePage({
+    super.key,
+    required this.settings,
+    required this.poem,
+  });
 
   @override
   State<PoemFeaturePracticePage> createState() =>
@@ -2314,6 +2578,7 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
   bool _autoNextEnabled = true;
   double _autoNextThreshold = 0.50;
   Timer? _evalDebounce;
+  bool _isEvaluating = false;
 
   // ---------------------------------------------------------------------------
   // ML KIT
@@ -2331,6 +2596,9 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
   bool _ttsReady = false;
 
   Future<void> _initTts() async {
+    await _tts.setPitch(1.0);
+    await _tts.setVolume(1.0);
+    // Default engine; _speak() sets language per utterance (EN phrases vs ZH UI).
     try {
       await _tts.setLanguage('en-US');
     } catch (_) {
@@ -2338,25 +2606,73 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
         await _tts.setLanguage('en_US');
       } catch (_) {}
     }
-    await _tts.setPitch(1.0);
-    await _tts.setVolume(1.0);
     await _tts.setSpeechRate(0.45);
-    await _tts.awaitSpeakCompletion(false);
+    // true = speak() waits until the utterance finishes before returning,
+    // so sequential _speak() calls never interrupt each other.
+    await _tts.awaitSpeakCompletion(true);
     _ttsReady = true;
   }
 
+  /// True if the string should use a Chinese (Cantonese / Mandarin) TTS voice.
+  static bool _textNeedsChineseVoice(String s) =>
+      RegExp(r'[\u4e00-\u9fff\u3400-\u4dbf]').hasMatch(s);
+
+  /// Pick engine + rate so English poem text is not read by Cantonese voice,
+  /// and Chinese feedback uses Cantonese or Mandarin TTS instead of English.
+  Future<void> _applyPoemTtsVoice(String text) async {
+    final needZh = _textNeedsChineseVoice(text);
+    try {
+      if (needZh) {
+        await _tts.setSpeechRate(0.48);
+        if (widget.settings.voiceLang == 'yue') {
+          try {
+            await _tts.setLanguage('zh-HK');
+          } catch (_) {
+            try {
+              await _tts.setLanguage('yue-HK');
+            } catch (_) {
+              await _tts.setLanguage('zh-TW');
+            }
+          }
+        } else {
+          try {
+            await _tts.setLanguage('zh-TW');
+          } catch (_) {
+            await _tts.setLanguage('en-US');
+          }
+        }
+      } else {
+        await _tts.setSpeechRate(0.45);
+        try {
+          await _tts.setLanguage('en-US');
+        } catch (_) {
+          try {
+            await _tts.setLanguage('en_GB');
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
   Future<void> _speak(String t) async {
-    if (!_ttsReady || t.isEmpty) return;
+    if (t.isEmpty) return;
+    if (!_ttsReady) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (!_ttsReady) return;
+    }
     try {
       await _tts.stop();
     } catch (_) {}
-    await _tts.speak(t);
+    try {
+      await _applyPoemTtsVoice(t);
+      await _tts.speak(t);
+    } catch (_) {}
   }
 
+  // Speaks the current word then the active character.
   Future<void> _announceWordThenChar() async {
     if (_currentWord.isEmpty || _activeChar.isEmpty) return;
-    await _speak("You are writing: $_currentWord.");
-    await Future.delayed(const Duration(milliseconds: 120));
+    await _speak(_currentWord);
     await _speak(_activeChar);
   }
 
@@ -2375,6 +2691,7 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
   int _charsCompleted = 0;
   double _sumAccuracy = 0.0;
   Duration _sumCharTime = Duration.zero;
+  Duration _lastCharTimeDelta = Duration.zero;
 
   final Map<String, int> _charMistakeCount = {};
   final Map<String, int> _wordMistakeCount = {};
@@ -2383,16 +2700,18 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
   void _startCharTimer() => _charStart = DateTime.now();
 
   String _fmtTimeShort(Duration d) {
+    final s = widget.settings;
     if (d.inMinutes >= 1) {
-      final m = d.inMinutes;
-      final s = d.inSeconds % 60;
-      return s > 0 ? '$m minutes $s seconds' : '$m minutes';
+      final m = '${d.inMinutes}';
+      final sec = '${d.inSeconds % 60}';
+      if (d.inSeconds % 60 > 0) {
+        return fmt(s, 'time_fmt_min_sec', {'m': m, 's': sec});
+      }
+      return fmt(s, 'time_fmt_min_only', {'m': m});
     }
-    return '${d.inSeconds} seconds';
+    return fmt(s, 'time_fmt_sec_only', {'s': '${d.inSeconds}'});
   }
 
-  // Characters that often confuse ML models
-  final Set<String> _simpleChars = {'l', 'I', '1', '|', 't', 'i'};
 
   // ---------------------------------------------------------------------------
   // LIFECYCLE
@@ -2411,14 +2730,18 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
     _rebuildRawIndices();
     _rebuildLetterKeys();
 
-    _initTts();
     _sessionStart = DateTime.now();
     _startCharTimer();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _centerActiveLetter();
-      await _announceWordThenChar();
-      _startCharTimer();
+    // Wait for TTS to be fully ready before the first announcement.
+    // Using .then() because initState cannot be async.
+    _initTts().then((_) {
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _centerActiveLetter();
+        await _announceWordThenChar();
+        _startCharTimer();
+      });
     });
   }
 
@@ -2430,6 +2753,9 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
     } catch (_) {}
     _tts.stop();
     _stripController.dispose();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
     super.dispose();
   }
 
@@ -2490,13 +2816,21 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
     final ink = di.Ink();
     int t = DateTime.now().millisecondsSinceEpoch;
     const dt = 16;
+    const maxPts = 350;
 
     for (final s in _strokes) {
       final stroke = di.Stroke();
       final pts = <di.StrokePoint>[];
-      for (final p in s) {
+      final step = s.length <= maxPts ? 1 : (s.length / maxPts).ceil();
+      for (int i = 0; i < s.length; i += step) {
+        final p = s[i];
         pts.add(di.StrokePoint(x: p.dx, y: p.dy, t: t));
         t += dt;
+      }
+      if (s.isNotEmpty &&
+          (pts.isEmpty || pts.last.x != s.last.dx || pts.last.y != s.last.dy)) {
+        final p = s.last;
+        pts.add(di.StrokePoint(x: p.dx, y: p.dy, t: t));
       }
       stroke.points = pts;
       ink.strokes.add(stroke);
@@ -2507,9 +2841,12 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
   // ----------------- Levenshtein Similarity -----------------
 
   int _lev(String a, String b) {
-    if (a == b) return 0;
-    final m = a.length;
-    final n = b.length;
+    const maxLen = 64;
+    final aa = a.length > maxLen ? a.substring(0, maxLen) : a;
+    final bb = b.length > maxLen ? b.substring(0, maxLen) : b;
+    if (aa == bb) return 0;
+    final m = aa.length;
+    final n = bb.length;
 
     final dp =
     List.generate(m + 1, (_) => List<int>.filled(n + 1, 0));
@@ -2519,7 +2856,7 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
 
     for (int i = 1; i <= m; i++) {
       for (int j = 1; j <= n; j++) {
-        final cost = a[i - 1] == b[j - 1] ? 0 : 1;
+        final cost = aa[i - 1] == bb[j - 1] ? 0 : 1;
         dp[i][j] = math.min(
           math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1),
           dp[i - 1][j - 1] + cost,
@@ -2547,171 +2884,134 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
     cands.indexWhere((c) => c.text.trim() == t);
 
     if (idx < 0) {
-      // No exact match → fallback to similarity
+      // Not found in candidates — use string similarity as a weak fallback
       double best = 0.0;
       for (final c in cands.take(5)) {
         best = math.max(best, _sim01(c.text.trim(), t));
       }
-      return (best * 0.6).clamp(0.0, 1.0);
+      return (best * 0.40).clamp(0.0, 0.40);
     }
 
-    // Weighted rank scores
+    // Rank weights: top-1 correct can reach 1.0 when recognition is clear.
     const weights = [
-      1.0,
-      0.85,
-      0.70,
-      0.55,
-      0.40,
-      0.30
+      1.0, // rank 1
+      0.72, // rank 2
+      0.54, // rank 3
+      0.40, // rank 4
+      0.30, // rank 5
+      0.22, // rank 6+
     ];
 
-    final w = weights[idx < weights.length
-        ? idx
-        : weights.length - 1];
-    final raw = cands[idx].score;
+    final w = weights[idx < weights.length ? idx : weights.length - 1];
 
-    final conf =
-    (raw is double && raw > 0 && raw <= 1.0)
-        ? raw
-        : 1.0;
+    // Score-gap confidence: ML Kit uses large positive scores; tiny gap
+    // between #1 and #2 means ambiguous ink. For an exact top-1 match we use
+    // a higher floor so good writing is not stuck ~80% when the model is tied.
+    final rawTop = cands[idx].score;
+    final rawNext =
+        (cands.length > idx + 1) ? cands[idx + 1].score : 0.0;
 
-    return (w * conf).clamp(0.0, 1.0);
-  }
-
-  // ----------------- Render Template Glyph -----------------
-
-  Future<ui.Image> _renderTemplate(Size size, String ch) async {
-    final rec = ui.PictureRecorder();
-    final canvas = Canvas(rec);
-
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..color = const Color(0x00000000),
-    );
-
-    const base = TextStyle(
-      fontFamily: 'KGPrimaryPenmanship',
-      color: Color(0xFFB0A999),
-    );
-
-    double lo = 100;
-    double hi = 520;
-
-    bool fits(double fs) {
-      final tp = TextPainter(
-        text: TextSpan(
-            text: ch, style: base.copyWith(fontSize: fs)),
-        textDirection: TextDirection.ltr,
-      )..layout(maxWidth: size.width - 24);
-
-      return tp.width <= size.width - 24 &&
-          tp.height <= size.height - 24;
+    double gapConf = 1.0;
+    if (rawTop > 0) {
+      final relGap = ((rawTop - rawNext) / rawTop).clamp(0.0, 1.0);
+      if (idx == 0) {
+        gapConf = (0.88 + relGap * 0.12).clamp(0.88, 1.0);
+      } else {
+        gapConf = (0.55 + relGap * 0.45).clamp(0.55, 1.0);
+      }
+    } else if (idx == 0) {
+      gapConf = 0.92;
     }
 
-    // Binary search optimal font size
-    for (int i = 0; i < 16; i++) {
-      final mid = (lo + hi) / 2;
-      if (fits(mid))
-        lo = mid;
-      else
-        hi = mid;
-    }
-
-    final tp = TextPainter(
-      text: TextSpan(
-          text: ch, style: base.copyWith(fontSize: lo)),
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: size.width - 24);
-
-    tp.paint(
-      canvas,
-      Offset((size.width - tp.width) / 2,
-          (size.height - tp.height) / 2),
-    );
-
-    return rec
-        .endRecording()
-        .toImage(size.width.toInt(), size.height.toInt());
+    return (w * gapConf).clamp(0.0, 1.0);
   }
 
-  // ----------------- Coverage (template hit test) -----------------
 
-  Future<double> _coverage01(
-      List<List<Offset>> strokes,
-      ui.Image template,
-      Size canvas) async {
-    const int dim = 160;
+  // ---------------------------------------------------------------------------
+  // WRITING COMPLETENESS — longest-span fraction of the canvas.
+  //
+  // Uses max(widthFraction, heightFraction) instead of area so that thin but
+  // tall characters like 'l', 'i', '1' are not penalised.  A vertical stroke
+  // covering 50 % of the canvas height scores full completeness even if its
+  // width is tiny.
+  //
+  //  span < 8 %   → barely anything drawn → completeness = 0.15 (blocks pass)
+  //  8 % – 25 %   → partial effort        → ramps linearly 0.50 → 1.00
+  //  ≥ 25 %       → good writing span     → completeness = 1.00
+  // ---------------------------------------------------------------------------
 
-    final rec = ui.PictureRecorder();
-    final c = Canvas(rec);
+  double _completeness(Size canvasSize) {
+    if (_strokes.isEmpty) return 0.0;
 
-    c.drawImageRect(
-      template,
-      Rect.fromLTWH(
-          0, 0,
-          template.width.toDouble(),
-          template.height.toDouble()),
-      Rect.fromLTWH(
-          0, 0,
-          dim.toDouble(),
-          dim.toDouble()),
-      Paint()..isAntiAlias = false,
-    );
+    double minX = double.infinity,  maxX = double.negativeInfinity;
+    double minY = double.infinity,  maxY = double.negativeInfinity;
+    int totalPts = 0;
 
-    final img =
-    await rec.endRecording().toImage(dim, dim);
-    final bd = await img.toByteData(
-        format: ui.ImageByteFormat.rawRgba);
-
-    if (bd == null) return 0.0;
-    final bytes = bd.buffer.asUint8List();
-
-    final sx = dim / canvas.width;
-    final sy = dim / canvas.height;
-
-    int total = 0;
-    int inside = 0;
-
-    for (final s in strokes) {
+    for (final s in _strokes) {
       for (final p in s) {
-        final x = (p.dx * sx).round().clamp(0, dim - 1);
-        final y = (p.dy * sy).round().clamp(0, dim - 1);
-
-        final idx = (y * dim + x) * 4;
-        final a = bytes[idx + 3];
-
-        total++;
-        if (a >= 16) inside++;
+        if (p.dx < minX) minX = p.dx;
+        if (p.dx > maxX) maxX = p.dx;
+        if (p.dy < minY) minY = p.dy;
+        if (p.dy > maxY) maxY = p.dy;
+        totalPts++;
       }
     }
 
-    if (total == 0) return 0.0;
-    return (inside / total).clamp(0.0, 1.0);
+    if (totalPts < 4) return 0.0;
+
+    final bbW = (maxX - minX).clamp(0.0, canvasSize.width);
+    final bbH = (maxY - minY).clamp(0.0, canvasSize.height);
+
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) return 1.0;
+
+    // Longest normalised span — fair to narrow characters like 'l' or 'i'
+    final wFrac = bbW / canvasSize.width;
+    final hFrac = bbH / canvasSize.height;
+    final span = wFrac > hFrac ? wFrac : hFrac;
+
+    if (span < 0.08) return 0.15;
+    if (span >= 0.25) return 1.0;
+    // Linear ramp 0.08 → 0.25 maps to 0.50 → 1.00
+    return 0.50 + ((span - 0.08) / 0.17) * 0.50;
   }
 
   // ---------------------------------------------------------------------------
-  // ✅ FINAL ACCURACY COMPUTATION (ML + Coverage + Fixes)
+  // FINAL ACCURACY COMPUTATION
+  //
+  // Hybrid: ML Kit recognition × writing completeness.
+  //
+  //  • ML Kit  — primary signal: did the model recognise the correct letter?
+  //              Position on the canvas is irrelevant; large/shaky strokes are
+  //              fine.  Score is rank-based with a gap-confidence multiplier so
+  //              ambiguous writing scores lower even when rank-1 is correct.
+  //
+  //  • Completeness — secondary signal: did the user actually write something
+  //              of reasonable size?  Prevents a single tap or tiny dot from
+  //              scoring high.  A low-vision user who writes big gets full marks
+  //              here; one who barely touches the screen is penalised.
+  //
+  // Formula:  final = mlScore × completeness
   // ---------------------------------------------------------------------------
 
   Future<double> _computeAccuracy01() async {
-    final rb =
-    _canvasKey.currentContext?.findRenderObject()
-    as RenderBox?;
+    final rb = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
     if (rb == null) return 0.0;
 
     final size = rb.size;
     final ch = _activeChar;
-
     if (ch.isEmpty) return 0.0;
 
+    // --- Completeness (cheap, synchronous) ---
+    final comp = _completeness(size);
+    if (comp < 0.20) return comp; // nothing meaningful drawn — fail immediately
+
+    // --- ML Kit recognition ---
     await _ensureModel(ch);
-    if (_ink == null) return 0.0;
+    if (_ink == null) return comp * 0.5;
 
     final ink = _inkFromStrokes(size);
-
     final ctx = di.DigitalInkRecognitionContext(
-      writingArea: di.WritingArea(
-          width: size.width, height: size.height),
+      writingArea: di.WritingArea(width: size.width, height: size.height),
     );
 
     List<di.RecognitionCandidate> cands = const [];
@@ -2719,31 +3019,10 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
       cands = await _ink!.recognize(ink, context: ctx);
     } catch (_) {}
 
-    double ml = _rankedScore01(cands, ch);
+    final mlScore = _rankedScore01(cands, ch);
 
-    final tmpl = await _renderTemplate(size, ch);
-    final cov = await _coverage01(
-        _strokes, tmpl, size);
-
-    // ✅ Prevent scribble pass
-    if (cov < 0.25) return 0.05;
-
-    // ✅ Simple character fixes
-    if (_simpleChars.contains(ch)) {
-      if (cov >= 0.65) ml = math.max(ml, 0.60);
-      if (cov >= 0.70 && ml < 0.50) ml = 0.60;
-    }
-
-    // ✅ Weighted final score
-    double wML = 0.80;
-    double wCov = 0.20;
-
-    if (_simpleChars.contains(ch)) {
-      wML = 0.60;
-      wCov = 0.40;
-    }
-
-    return (wML * ml + wCov * cov).clamp(0.0, 1.0);
+    // Combine: ML primary; completeness only nudges tiny / lazy strokes.
+    return (mlScore * 0.86 + comp * 0.14).clamp(0.0, 1.0);
   }
 
   // ---------------------------------------------------------------------------
@@ -2759,7 +3038,10 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
 
     final now = DateTime.now();
     if (_charStart != null) {
-      _sumCharTime += now.difference(_charStart!);
+      _lastCharTimeDelta = now.difference(_charStart!);
+      _sumCharTime += _lastCharTimeDelta;
+    } else {
+      _lastCharTimeDelta = Duration.zero;
     }
     _charStart = now;
 
@@ -2784,24 +3066,30 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
 
   void _scheduleEval() {
     if (!_autoNextEnabled) return;
+    if (_isEvaluating) return;
 
     _evalDebounce?.cancel();
-    _evalDebounce = Timer(const Duration(milliseconds: 260), () async {
-      final score = await _finalizeCurrentChar();
-      final pct = (score * 100).toStringAsFixed(0);
+    _evalDebounce = Timer(const Duration(milliseconds: 500), () async {
+      if (_isEvaluating) return;
+      _isEvaluating = true;
+      try {
+        final score = await _finalizeCurrentChar();
 
-      await _speak("Accuracy: $pct percent.");
-      await Future.delayed(const Duration(milliseconds: 80));
+        if (!mounted) return;
 
-      if (score >= _autoNextThreshold) {
-        await _speak("Next");
-        HapticFeedback.selectionClick();
-        _toNextChar(force: false);
-      } else {
-        await _speak("Write again.");
-        _charsCompleted -= 1;
-        _sumAccuracy -= score;
-        _charStart = DateTime.now();
+        if (score >= _autoNextThreshold) {
+          HapticFeedback.selectionClick();
+          await _toNextChar(force: false);
+        } else {
+          await _speak(t(widget.settings, 'poem_write_again'));
+          _charsCompleted -= 1;
+          _sumAccuracy -= score;
+          _sumCharTime -= _lastCharTimeDelta;
+          _charStart = DateTime.now();
+          _clearCanvas();
+        }
+      } finally {
+        _isEvaluating = false;
       }
     });
   }
@@ -2859,6 +3147,7 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
   // ---------------------------------------------------------------------------
 
   void _start(Offset p) {
+    _evalDebounce?.cancel();
     _current = [p];
     setState(() {});
   }
@@ -2882,7 +3171,7 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
   }
 
   // ---------------------------------------------------------------------------
-  // UI BUILD — Auto-Scaling Writing Area (Option B)
+  // UI BUILD — Auto-Scaling Writing Area (Portrait + Landscape adaptive)
   // ---------------------------------------------------------------------------
 
   @override
@@ -2890,7 +3179,7 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
     if (_wordIndex >= _words.length) {
       return Scaffold(
         appBar: AppBar(title: Text(widget.poem.title)),
-        body: const Center(child: Text("No characters to practice.")),
+        body: Center(child: Text(t(widget.settings, 'poem_no_chars'))),
       );
     }
 
@@ -2901,243 +3190,425 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
       return const SizedBox.shrink();
     }
 
-    // Colors
     const bgColor = Color(0xFF0A0A3F);
     const wordColor = Color(0xFFF2F6FF);
     const activeColor = Color(0xFFFFD84D);
 
-    // -------------------------
-    // Top-level Scaffold
-    // -------------------------
-    return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: bgColor,
-        title: InkWell(
-          onTap: () => _speak(widget.poem.title),
-          child: Text(
-            widget.poem.title,
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ),
+    return OrientationBuilder(
+      builder: (context, orientation) {
+        final isLandscape =
+            forceLandscape || orientation == Orientation.landscape;
 
-      body: Column(
-        children: [
+        final wLen = _currentWord.length;
+        if (_letterKeys.length != wLen) {
+          _letterKeys = List.generate(wLen, (_) => GlobalKey());
+        }
 
-          // ✅ Landscape button
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: ElevatedButton(
-              onPressed: _toggleForceLandscape,
-              child: Text(
-                forceLandscape
-                    ? "Landscape Mode (ON)"
-                    : "Landscape Mode (OFF)",
-                style: const TextStyle(fontSize: 20),
-              ),
-            ),
-          ),
-          // -------------------------------------------------------------------
-          // TOP WORD LABEL (tap to speak whole word)
-          // -------------------------------------------------------------------
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: InkWell(
-              onTap: () => _speak("You are writing: $_currentWord."),
-              child: Text(
-                _currentWord,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: 'KGPrimaryPenmanship',
-                  fontSize: 40,
-                  fontWeight: FontWeight.w900,
-                  color: wordColor,
-                ),
-              ),
-            ),
-          ),
+        // ------------------------------------------------------------------
+        // Shared helpers
+        // ------------------------------------------------------------------
+        TextStyle makeShadow(double fs, Color c) => TextStyle(
+          fontFamily: 'KGPrimaryPenmanship',
+          fontWeight: FontWeight.w900,
+          fontSize: fs,
+          color: c,
+          shadows: [
+            Shadow(
+                color: Colors.black.withValues(alpha: 0.9), blurRadius: 6),
+            Shadow(
+                color: Colors.black.withValues(alpha: 0.9), blurRadius: 6),
+          ],
+        );
 
-          // -------------------------------------------------------------------
-          // PROGRESS TEXT
-          // -------------------------------------------------------------------
-          Text(
-            "Word ${_wordIndex + 1}/${_words.length} • "
-                "Char ${_charIndex + 1}/${_chars.length}",
-            style: const TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // -------------------------------------------------------------------
-          // AUTO-SCALING WRITING AREA (OPTION B)
-          // -------------------------------------------------------------------
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final screenH = constraints.maxHeight;
-
-                // Estimate character height (based on available height)
-                final estCharHeight =
-                (screenH * 0.32).clamp(120.0, 260.0);
-
-                // Auto-shift: dynamically move writing area upward
-                final double autoShift = (estCharHeight * 0.55)
-                    .clamp(40.0, screenH * 0.30);
-
-                // Compute active/normal font sizes (matching the template row)
-                final activeFs =
-                (screenH * 0.28).clamp(90.0, 180.0);
-                final normalFs =
-                (activeFs * 0.60).clamp(50.0, activeFs - 10);
-
-                TextStyle makeShadow(double fs, Color c) => TextStyle(
-                  fontFamily: 'KGPrimaryPenmanship',
-                  fontWeight: FontWeight.w900,
-                  fontSize: fs,
-                  color: c,
-                  shadows: [
-                    Shadow(
-                        color: Colors.black.withOpacity(0.9),
-                        blurRadius: 6),
-                    Shadow(
-                        color: Colors.black.withOpacity(0.9),
-                        blurRadius: 6),
-                  ],
-                );
-
-                final activeStyle = makeShadow(activeFs, activeColor);
-                final normalStyle = makeShadow(normalFs, wordColor);
-
-                // ---------------------------
-                // The scrolling template row
-                // ---------------------------
-                Widget _wordRow() {
-                  final w = _currentWord;
-                  return SingleChildScrollView(
-                    controller: _stripController,
-                    physics: const NeverScrollableScrollPhysics(),
-                    scrollDirection: Axis.horizontal,
-                    child: Padding(
-                      padding: _stripPadding,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(w.length, (i) {
-                          final isActive = (i == _activeRawIndex);
-                          return Padding(
-                            key: _letterKeys[i],
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: _gap / 2),
-                            child: Text(
-                              w[i],
-                              style: isActive
-                                  ? activeStyle
-                                  : normalStyle,
-                            ),
-                          );
-                        }),
-                      ),
+        Widget buildWordRow(double activeFs, double normalFs) {
+          final activeStyle = makeShadow(activeFs, activeColor);
+          final normalStyle = makeShadow(normalFs, wordColor);
+          final w = _currentWord;
+          return SingleChildScrollView(
+            controller: _stripController,
+            physics: const ClampingScrollPhysics(),
+            scrollDirection: Axis.horizontal,
+            child: Padding(
+              padding: _stripPadding,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(w.length, (i) {
+                  final isActive = (i == _activeRawIndex);
+                  return Padding(
+                    key: _letterKeys[i],
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: _gap / 2),
+                    child: Text(
+                      w[i],
+                      style: isActive ? activeStyle : normalStyle,
                     ),
                   );
-                }
+                }),
+              ),
+            ),
+          );
+        }
 
-                // Recenter after layout changes
-                WidgetsBinding.instance
-                    .addPostFrameCallback((_) => _centerActiveLetter());
-
-                // ---------------------------
-                // AUTO-SCALED WRITING AREA
-                // ---------------------------
-                return Padding(
-                  padding: EdgeInsets.only(top: autoShift),
-                  child: GestureDetector(
-                    onTap: () async {
-                      await _centerActiveLetter();
-                      await _announceWordThenChar();
-                    },
-                    onPanStart: (d) => _start(d.localPosition),
-                    onPanUpdate: (d) => _move(d.localPosition),
-                    onPanEnd: (_) => _end(),
-                    onDoubleTap: _speakCharOnly,
-
-                    child: Stack(
-                      children: [
-                        // Word display row
-                        Positioned.fill(
-                          child: Align(
-                            alignment: Alignment.center,
-                            child: _wordRow(),
-                          ),
-                        ),
-
-                        // Template canvas
-                        Positioned.fill(
-                          child: RepaintBoundary(
-                            key: _canvasKey,
-                            child: const SizedBox.expand(),
-                          ),
-                        ),
-
-                        // User strokes
-                        Positioned.fill(
-                          child: CustomPaint(
-                            painter: StrokePainter(
-                              _strokes,
-                              _current,
-                              strokeColor: Colors.white,
-                              strokeWidth: _strokeWidth,
-                            ),
-                          ),
-                        ),
-                      ],
+        // Canvas with an optional template overlay (word row visible through canvas).
+        // The template is rendered above the background but below the stroke layer,
+        // so characters are always visible as a guide while drawing.
+        Widget buildCanvas({Widget? template, Alignment templateAlign = Alignment.center}) =>
+            GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () async {
+            await _centerActiveLetter();
+            await _announceWordThenChar();
+          },
+          onPanStart: (d) => _start(d.localPosition),
+          onPanUpdate: (d) => _move(d.localPosition),
+          onPanEnd: (_) => _end(),
+          onDoubleTap: _speakCharOnly,
+          child: ClipRect(   // prevents any child from painting outside canvas
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Opaque background — ensures touch events are always captured
+                const ColoredBox(color: bgColor),
+                // Template characters — clipped so oversized fonts never escape
+                if (template != null)
+                  Positioned.fill(
+                    child: Align(
+                      alignment: templateAlign,
+                      child: template,
                     ),
                   ),
-                );
-              },
+                // RepaintBoundary for coverage calculation
+                Positioned.fill(
+                  child: RepaintBoundary(
+                    key: _canvasKey,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+                // User strokes painted on top
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: StrokePainter(
+                      _strokes,
+                      _current,
+                      strokeColor: Colors.white,
+                      strokeWidth: _strokeWidth,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
+        );
 
-          const SizedBox(height: 8),
+        Widget buildButtonBar() => SafeArea(
+          top: false,
+          child: Padding(
+            padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                // Blue — Speak (audio cue)
+                _BigIconButton(
+                  icon: Icons.record_voice_over,
+                  semanticLabel: t(widget.settings, 'poem_a11y_speak'),
+                  onPressed: _speakCharOnly,
+                  backgroundColor: const Color(0xFF1A5BB0),
+                ),
+                // Amber — Clear (reset/undo action)
+                _BigIconButton(
+                  icon: Icons.cleaning_services,
+                  semanticLabel: t(widget.settings, 'poem_a11y_clear'),
+                  onPressed: _clearCanvas,
+                  backgroundColor: const Color(0xFFB06000),
+                ),
+                // Green — Next / advance
+                _BigIconButton(
+                  icon: Icons.arrow_forward,
+                  semanticLabel: t(widget.settings, 'next'),
+                  onPressed: () => _forceNext(),
+                  backgroundColor: const Color(0xFF1A7A40),
+                ),
+              ],
+            ),
+          ),
+        );
 
-          // -------------------------------------------------------------------
-          // BOTTOM BUTTON BAR
-          // -------------------------------------------------------------------
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  _BigIconButton(
-                    icon: Icons.record_voice_over,
-                    semanticLabel: "Speak",
-                    onPressed: _speakCharOnly,
-                  ),
-                  _BigIconButton(
-                    icon: Icons.cleaning_services,
-                    semanticLabel: "Clear",
-                    onPressed: _clearCanvas,
-                  ),
-                  _BigIconButton(
-                    icon: Icons.arrow_forward,
-                    semanticLabel: "Next",
-                    onPressed: () => _forceNext(),
-                  ),
-                ],
+        // ------------------------------------------------------------------
+        // AppBar with landscape toggle in actions
+        // ------------------------------------------------------------------
+        final appBar = AppBar(
+          backgroundColor: bgColor,
+          title: InkWell(
+            onTap: () => _speak(widget.poem.title),
+            child: Text(
+              widget.poem.title,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
               ),
             ),
           ),
-        ],
-      ),
+          actions: [
+            IconButton(
+              tooltip: isLandscape
+                  ? t(widget.settings, 'poem_tip_portrait')
+                  : t(widget.settings, 'poem_tip_landscape'),
+              icon: Icon(
+                isLandscape
+                    ? Icons.stay_primary_portrait
+                    : Icons.stay_primary_landscape,
+                color: isLandscape
+                    ? const Color(0xFFFFD84D)
+                    : Colors.white,
+                size: 30,
+              ),
+              onPressed: _toggleForceLandscape,
+            ),
+            const SizedBox(width: 8),
+          ],
+        );
+
+        // ------------------------------------------------------------------
+        // LANDSCAPE LAYOUT — left control panel + right full-height canvas
+        // ------------------------------------------------------------------
+        if (isLandscape) {
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _centerActiveLetter());
+
+          return Scaffold(
+            backgroundColor: bgColor,
+            appBar: appBar,
+            body: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Left panel — LayoutBuilder so content scales to actual height
+                LayoutBuilder(
+                  builder: (ctx, panelBox) {
+                    final panelH = panelBox.maxHeight;
+                    // Scale button size with available height; min 44, max 60
+                    final btnSize = (panelH * 0.16).clamp(44.0, 60.0);
+                    final iconSize = btnSize * 0.50;
+                    // Scale word font; clamp so it fits the 100px wide panel
+                    final wordFs = (panelH * 0.06).clamp(14.0, 22.0);
+                    final progFs = (panelH * 0.04).clamp(11.0, 16.0);
+                    final btnPad = (panelH * 0.015).clamp(3.0, 7.0);
+
+                    Widget adaptiveBtn(
+                      IconData icon,
+                      VoidCallback onTap,
+                      Color color,
+                      String a11yLabel,
+                    ) =>
+                        Padding(
+                          padding:
+                              EdgeInsets.symmetric(vertical: btnPad),
+                          child: SizedBox(
+                            width: btnSize,
+                            height: btnSize,
+                            child: Semantics(
+                              button: true,
+                              label: a11yLabel,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: color,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.zero,
+                                  shape: const CircleBorder(),
+                                  elevation: 3,
+                                ),
+                                onPressed: onTap,
+                                child: Icon(icon, size: iconSize),
+                              ),
+                            ),
+                          ),
+                        );
+
+                    return Container(
+                      width: 100,
+                      color: const Color(0xFF12124A),
+                      // SingleChildScrollView prevents overflow on very short
+                      // screens while still looking centred on normal ones
+                      child: SingleChildScrollView(
+                        physics: const NeverScrollableScrollPhysics(),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: panelH),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // Word label — tap to speak (NoTextScale to
+                              // keep left panel compact, avoiding overflow)
+                              NoTextScale(
+                                child: GestureDetector(
+                                  onTap: () => _speak(_currentWord),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6),
+                                    child: Text(
+                                      _currentWord,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontFamily: 'KGPrimaryPenmanship',
+                                        fontSize: wordFs,
+                                        fontWeight: FontWeight.w900,
+                                        color: wordColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: btnPad),
+                              // Progress counter
+                              NoTextScale(
+                                child: Text(
+                                  fmt(widget.settings, 'poem_progress_words_chars', {
+                                    'wi': '${_wordIndex + 1}',
+                                    'wt': '${_words.length}',
+                                    'ci': '${_charIndex + 1}',
+                                    'cc': '${_chars.length}',
+                                  }),
+                                  style: TextStyle(
+                                    fontSize: progFs,
+                                    color: Colors.white54,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: btnPad * 1.5),
+                              // Action buttons (adaptive size)
+                              adaptiveBtn(
+                                  Icons.record_voice_over,
+                                  _speakCharOnly,
+                                  const Color(0xFF1A5BB0),
+                                  t(widget.settings, 'poem_a11y_speak')),
+                              adaptiveBtn(
+                                  Icons.cleaning_services_rounded,
+                                  _clearCanvas,
+                                  const Color(0xFFB06000),
+                                  t(widget.settings, 'poem_a11y_clear')),
+                              adaptiveBtn(
+                                  Icons.arrow_forward_rounded,
+                                  () => _forceNext(),
+                                  const Color(0xFF1A7A40),
+                                  t(widget.settings, 'next')),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                // Divider
+                Container(width: 1, color: Colors.white24),
+
+                // Right panel — same word-row template as portrait mode
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (ctx, box) {
+                      final h = box.maxHeight;
+                      final w = box.maxWidth;
+                      // Landscape: wide canvas — scale template from width so
+                      // practice glyphs are larger than typical portrait caps.
+                      final safeCeil = (math.max(h * 0.40, w * 0.22))
+                          .clamp(72.0, 240.0);
+                      final activeFs = (math.max(h * 0.30, w * 0.18))
+                          .clamp(56.0, safeCeil);
+                      final normalFs =
+                          (activeFs * 0.50).clamp(26.0, activeFs - 12);
+                      WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => _centerActiveLetter());
+                      return buildCanvas(
+                        template: buildWordRow(activeFs, normalFs),
+                        templateAlign: Alignment.center,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // ------------------------------------------------------------------
+        // PORTRAIT LAYOUT — stacked column (original behaviour)
+        // ------------------------------------------------------------------
+        return Scaffold(
+          backgroundColor: bgColor,
+          appBar: appBar,
+          body: Column(
+            children: [
+              // Word label — NoTextScale keeps it at its defined size so the
+              // canvas below gets maximum vertical space (and thus always shows
+              // a large, consistent template character).
+              NoTextScale(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+                  child: InkWell(
+                    onTap: () => _speak(_currentWord),
+                    child: Text(
+                      _currentWord,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'KGPrimaryPenmanship',
+                        fontSize: 52,
+                        fontWeight: FontWeight.w900,
+                        color: wordColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Progress text — also NoTextScale so it stays compact
+              NoTextScale(
+                child: Text(
+                  fmt(widget.settings, 'poem_progress_words_chars', {
+                    'wi': '${_wordIndex + 1}',
+                    'wt': '${_words.length}',
+                    'ci': '${_charIndex + 1}',
+                    'cc': '${_chars.length}',
+                  }),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white70,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              // Writing area — canvas with word row as centered template
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (ctx, box) {
+                    final h = box.maxHeight;
+                    final safeCeil = (h * 0.34).clamp(56.0, 128.0);
+                    final activeFs = (h * 0.26).clamp(44.0, safeCeil);
+                    final normalFs =
+                        (activeFs * 0.50).clamp(26.0, activeFs - 12);
+                    WidgetsBinding.instance.addPostFrameCallback(
+                            (_) => _centerActiveLetter());
+                    return buildCanvas(
+                      template: buildWordRow(activeFs, normalFs),
+                      templateAlign: Alignment.center,
+                    );
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              buildButtonBar(),
+            ],
+          ),
+        );
+      },
     );
   }
   // ---------------------------------------------------------------------------
@@ -3160,15 +3631,15 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
 
     final difficultWords = _computeDifficultWords();
 
-    // Build TTS summary
-    String speakSummary =
-        "Completed. Overall accuracy ${(overallAcc * 100).toStringAsFixed(0)} percent. "
-        "Average time per character ${_fmtTimeShort(avgCharTime)}. "
-        "Total time ${_fmtTimeShort(totalTime)}. ";
-
+    final pct = (overallAcc * 100).toStringAsFixed(0);
+    var speakSummary = fmt(widget.settings, 'poem_tts_summary', {
+      'pct': pct,
+      'avgChar': _fmtTimeShort(avgCharTime),
+      'total': _fmtTimeShort(totalTime),
+    });
     if (difficultWords.isNotEmpty) {
       speakSummary +=
-      "Words needing improvement include: ${difficultWords.join(", ")}.";
+          ' ${fmt(widget.settings, 'poem_tts_weak', {'words': difficultWords.join(', ')})}';
     }
 
     await _speak(speakSummary);
@@ -3179,49 +3650,160 @@ class _PoemFeaturePracticePageState extends State<PoemFeaturePracticePage> {
     showDialog(
       context: context,
       builder: (_) {
+        final accPct = (overallAcc * 100).toStringAsFixed(0);
+        final accColor = overallAcc >= 0.8
+            ? const Color(0xFF4AE88A)
+            : (overallAcc >= 0.5 ? Colors.orange : Colors.redAccent);
         return AlertDialog(
-          title: const Text(
-            "Poem Summary",
-            style: TextStyle(fontWeight: FontWeight.w900),
+          backgroundColor: const Color(0xFF12124A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            t(widget.settings, 'poem_summary_title'),
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 28,
+              color: Colors.white,
+            ),
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Overall accuracy: ${(overallAcc * 100).toStringAsFixed(0)}%",
-              ),
-              Text(
-                "Average time per character: ${_fmtTimeShort(avgCharTime)}",
-              ),
-              Text(
-                "Total time: ${_fmtTimeShort(totalTime)}",
-              ),
-              if (difficultWords.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                const Text(
-                  "Difficult Words:",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        "$accPct%",
+                        style: TextStyle(
+                          fontSize: 72,
+                          fontWeight: FontWeight.w900,
+                          color: accColor,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                for (final w in difficultWords)
-                  Text("• $w", style: const TextStyle(fontSize: 16)),
-              ],
-            ],
+                  Center(
+                    child: Text(
+                      t(widget.settings, 'overall_accuracy_caption'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _summaryRow(
+                    Icons.timer_outlined,
+                    t(widget.settings, 'avg_per_character'),
+                    _fmtTimeShort(avgCharTime),
+                  ),
+                  const SizedBox(height: 8),
+                  _summaryRow(
+                    Icons.hourglass_bottom,
+                    t(widget.settings, 'total_time_label'),
+                    _fmtTimeShort(totalTime),
+                  ),
+                  if (difficultWords.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    Text(
+                      t(widget.settings, 'needs_improvement'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 20,
+                        color: Colors.orangeAccent,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    for (final w in difficultWords)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          "• $w",
+                          style: const TextStyle(
+                            fontSize: 22,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          softWrap: true,
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () =>
                   Navigator.popUntil(context, (r) => r.isFirst),
-              child: const Text("Close"),
+              child: Text(
+                t(widget.settings, 'close'),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF4A90E2),
+                ),
+              ),
             )
           ],
         );
       },
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // SUMMARY DIALOG HELPERS
+  // ---------------------------------------------------------------------------
+
+  Widget _summaryRow(IconData icon, String label, String value) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Icon(icon, color: Colors.white54, size: 24),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Flexible(
+              flex: 5,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w500,
+                ),
+                softWrap: true,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              flex: 4,
+              child: Text(
+                value,
+                textAlign: TextAlign.end,
+                style: const TextStyle(
+                  fontSize: 20,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+                softWrap: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 
   // ---------------------------------------------------------------------------
   // DIFFICULT WORD COMPUTATION (Option‑C logic)
@@ -3261,11 +3843,14 @@ class _BigIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
   final String semanticLabel;
+  // Distinct button colours improve discoverability for low-vision users
+  final Color backgroundColor;
 
   const _BigIconButton({
     required this.icon,
     required this.onPressed,
     required this.semanticLabel,
+    this.backgroundColor = const Color(0xFF4A90E2),
   });
 
   @override
@@ -3282,12 +3867,12 @@ class _BigIconButton extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
-              minimumSize: const Size.fromHeight(64),
-              backgroundColor: const Color(0xFF4A90E2),
+              minimumSize: const Size.fromHeight(72),
+              backgroundColor: backgroundColor,
               foregroundColor: Colors.white,
             ),
             onPressed: onPressed,
-            child: Icon(icon, size: 42),
+            child: Icon(icon, size: 44),
           ),
         ),
       ),
